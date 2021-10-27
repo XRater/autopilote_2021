@@ -13,6 +13,8 @@ class LaserTask:
 		self.laser_subscriber = rospy.Subscriber('/base_scan', LaserScan, self.callback)
 		self.marker_publisher = rospy.Publisher('/visualization_marker', Marker, queue_size=10)
 
+		self.threshold = 0.1
+
 	def callback(self, laser: LaserScan):
 		xs, ys = self.get_points(laser)
 		self.rate.sleep()
@@ -23,8 +25,12 @@ class LaserTask:
 		laser_ranges = np.array(laser.ranges)
 		laser_angles = np.arange(start=msg.angle_min, step=msg.angle_increment, end=msg.angle_max)
 
-		# TODO filtration
-		return laser_ranges * np.cos(laser_angles), laser_ranges * np.sin(laser_angles)
+		diffs = np.abs(laser_ranges[:-1] - laser_ranges[1:])
+		big_diffs = diffs > threshold
+		outliers = np.logical_and(np.insert(big_diffs, 0, False), np.append(big_diffs, False))
+
+		xs, ys = laser_ranges * np.cos(laser_angles), laser_ranges * np.sin(laser_angles)
+		return xs[~outliers], ys[~outliers]
 
 	def create_marker(self, xs, ys):
 		marker = Marker()
